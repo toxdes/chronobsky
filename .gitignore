@@ -1,0 +1,5 @@
+.env
+.cursor.json
+tweets/
+__pycache__/
+*.pyc
