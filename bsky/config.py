@@ -27,6 +27,8 @@ def _load_dotenv(path):
 _env = _load_dotenv(_ENV_PATH)
 HANDLE = _env.get('BLUESKY_HANDLE', '')
 APP_PASSWORD = _env.get('BLUESKY_APP_PASSWORD', '')
+COUNTER_API_TENANT_ID = _env.get('COUNTER_API_TENANT_ID', '')
+COUNTER_API_COUNTER_ID = _env.get('COUNTER_API_COUNTER_ID', '')
 
 
 def validate():

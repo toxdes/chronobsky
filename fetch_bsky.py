@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from bsky.config import PDS_URL, HANDLE, APP_PASSWORD, TWEETS_DIR, validate
+from bsky.config import PDS_URL, HANDLE, APP_PASSWORD, TWEETS_DIR, validate, COUNTER_API_TENANT_ID, COUNTER_API_COUNTER_ID
 from bsky.client import Client, HTTPError
 from bsky.auth import login
 from bsky.feed import fetch_feed, transform_feed_item
@@ -8,6 +8,21 @@ from bsky.media import download_images
 from bsky.state import load, save
 import os
 import sys
+import urllib.request
+
+
+def _ping_counter():
+    if not COUNTER_API_TENANT_ID or not COUNTER_API_COUNTER_ID:
+        return
+    url = (
+        f'https://counter-api.toxdes.com/tenants/{COUNTER_API_TENANT_ID}'
+        f'/counters/{COUNTER_API_COUNTER_ID}/inc'
+    )
+    try:
+        req = urllib.request.Request(url, method='POST')
+        urllib.request.urlopen(req, timeout=10)
+    except Exception:
+        pass
 
 
 # getAuthorFeed returns items newest-first; the cutoff prevents re-processing old items
@@ -58,6 +73,7 @@ def main():
 
     if not new_posts:
         print('No new posts.')
+        _ping_counter()
         return
 
     print(f'Fetched {len(new_posts)} new posts/replies.')
@@ -76,6 +92,7 @@ def main():
     newest = max(p['created_at'] for p in new_posts)
     save({'latest_created_at': newest})
     print('Done.')
+    _ping_counter()
 
 
 if __name__ == '__main__':
