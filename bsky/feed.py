@@ -1,13 +1,21 @@
 def _extract_images(embed):
     if not embed:
         return []
-    # recordWithMedia wraps a media embed (images) + a quoted record
     if 'media' in embed:
         embed = embed['media']
     images = embed.get('images', [])
     if not images:
         return []
     return [img['fullsize'] for img in images if 'fullsize' in img]
+
+
+# Both record#view and recordWithMedia#view carry the quoted post URI in the top-level record field
+def _extract_quoted_id(embed):
+    if not embed:
+        return None
+    if 'record' in embed:
+        return embed['record'].get('uri')
+    return None
 
 
 def _rkey(uri):
@@ -46,6 +54,7 @@ def transform_feed_item(item, actor):
 
     embed = post.get('embed')
     image_urls = _extract_images(embed)
+    quoted_post_id = _extract_quoted_id(embed)
 
     url = _post_url(uri, actor)
 
@@ -57,5 +66,6 @@ def transform_feed_item(item, actor):
         'images_local_path': [],
         'created_at': created_at,
         'parent_id': parent_id,
+        'quoted_post_id': quoted_post_id,
         'post_url': url,
     }

@@ -121,6 +121,11 @@ def render_post(post):
                 lines.append(f'    <img src="{_escape(url)}" alt="" loading="lazy">')
         lines.append('  </div>')
 
+    quoted_id = post.get('quoted_post_id')
+    if quoted_id:
+        eq = _escape(quoted_id)
+        lines.append(f'  <a href="#{eq}" class="quote-link">Quoted post</a>')
+
     lines.append('</article>')
     return '\n'.join(lines)
 
@@ -159,7 +164,7 @@ def generate_html(days):
 </header>
 <main>
 <section class="intro">
-  <p>Posts as a blog from <a href="https://bsky.app/profile/{_escape(HANDLE)}" target="_blank" rel="noopener">@{_escape(HANDLE)}</a> on bsky.social</p>
+  <p>Posts from <a href="https://bsky.app/profile/{_escape(HANDLE)}" target="_blank" rel="noopener">@{_escape(HANDLE)}</a> on bsky.social as a blog</p>
 </section>
 {sections}
 </main>
@@ -295,6 +300,7 @@ main {
   padding: 16px 20px;
   border-radius: 12px;
   border: 1px solid var(--border);
+  scroll-margin-top: 70px;
   transition: border-color .3s, background .3s;
 }
 .post.reply { background: var(--reply); }
@@ -328,6 +334,23 @@ main {
 }
 .post:hover .post-link { opacity: 1; }
 .post-link:hover { color: var(--accent); }
+
+.quote-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  transition: background .2s, border-color .2s;
+}
+.quote-link:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent);
+}
 
 /* ── Content ────────────────────────────────────── */
 .post-content {
