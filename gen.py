@@ -67,7 +67,7 @@ def _parse_time(iso_str):
 
 def format_heading_date(date_str):
     dt = datetime.strptime(date_str, '%Y-%m-%d')
-    return dt.strftime('%B %d, %Y')
+    return dt.strftime('%A, %B %d, %Y')
 
 
 def format_time_short(iso_str):
@@ -96,7 +96,7 @@ def content_to_html(text):
 
 # ── HTML generation ─────────────────────────────────────────────
 
-def render_post(post):
+def render_post(post, known_ids):
     is_reply = post['parent_id'] is not None
     cls = 'post' + (' reply' if is_reply else '')
     eid = _escape(post['id'])
@@ -107,9 +107,13 @@ def render_post(post):
     lines.append('  <div class="post-meta">')
     lines.append(f'    <time datetime="{_escape(time_iso)}">{_escape(time_short)}</time>')
     if is_reply:
-        lines.append('    <span class="reply-badge">↳ Reply</span>')
+        pid = post['parent_id']
+        if pid in known_ids:
+            lines.append(f'    <a href="#{_escape(pid)}" class="reply-badge">↳ Reply</a>')
+        else:
+            lines.append('    <span class="reply-badge">↳ Reply</span>')
     if post.get('post_url'):
-        lines.append(f'    <a href="{_escape(post["post_url"])}" class="post-link" target="_blank" rel="noopener" title="Open on Bluesky">↗</a>')
+        lines.append(f'    <a href="{_escape(post["post_url"])}" class="post-link" target="_blank" rel="noopener">↗ view on bsky</a>')
     lines.append('  </div>')
     lines.append(f'  <div class="post-content">{content_to_html(post["content"])}</div>')
 
@@ -130,17 +134,37 @@ def render_post(post):
     return '\n'.join(lines)
 
 
-def render_day(date_str, posts):
+def render_day(date_str, posts, known_ids):
     lines = [f'<section class="day" id="{date_str}">']
     lines.append(f'  <h2>{_escape(format_heading_date(date_str))}</h2>')
     for p in posts:
-        lines.append(render_post(p))
+        lines.append(render_post(p, known_ids))
     lines.append('</section>')
     return '\n'.join(lines)
 
 
-def generate_html(days):
-    sections = '\n'.join(render_day(d, ps) for d, ps in days.items())
+def render_calendar_sidebar():
+    return '''<aside class="cal-sidebar">
+  <div id="calendar">
+    <div class="cal-header">
+      <button id="cal-prev" class="cal-nav">&lt;</button>
+      <span id="cal-label" class="cal-label"></span>
+      <button id="cal-next" class="cal-nav">&gt;</button>
+    </div>
+    <table class="cal-grid">
+      <thead>
+        <tr><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th><th>Su</th></tr>
+      </thead>
+      <tbody id="cal-body"></tbody>
+    </table>
+  </div>
+</aside>'''
+
+
+def generate_html(days, known_ids):
+    sections = '\n'.join(render_day(d, ps, known_ids) for d, ps in days.items())
+    dates_json = json.dumps(sorted(days.keys()))
+    cal_sidebar = render_calendar_sidebar()
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -158,16 +182,36 @@ def generate_html(days):
     <h1><a href="#">Chronobsky</a></h1>
     <nav>
       <a href="https://github.com/toxdes/chronobsky" class="gh-link" target="_blank" rel="noopener">Source</a>
+      <button id="cal-toggle" class="cal-toggle">Cal</button>
       <button id="theme-toggle" aria-label="Toggle theme">🌚</button>
     </nav>
   </div>
 </header>
+<div class="page-wrap">
 <main>
 <section class="intro">
   <p>Posts from <a href="https://bsky.app/profile/{_escape(HANDLE)}" target="_blank" rel="noopener">@{_escape(HANDLE)}</a> on bsky.social as a blog</p>
 </section>
 {sections}
 </main>
+{cal_sidebar}
+</div>
+<div id="image-modal" class="modal-overlay" hidden>
+  <button id="modal-close" class="modal-close">&times;</button>
+  <img id="modal-img" src="" alt="">
+</div>
+<div id="cal-modal" class="cal-modal-overlay" hidden>
+  <div class="cal-modal-box">
+    <div class="cal-modal-header">
+      <span class="cal-modal-title">Calendar</span>
+      <button id="cal-modal-close" class="cal-modal-close">&times;</button>
+    </div>
+    <div id="cal-modal-body"></div>
+  </div>
+</div>
+<script>
+var ACTIVE_DATES = {dates_json};
+</script>
 <script src="theme.js"></script>
 </body>
 </html>'''
@@ -224,7 +268,7 @@ header {
 }
 
 .header-inner {
-  max-width: 680px;
+  max-width: 980px;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -246,6 +290,21 @@ header nav { display: flex; align-items: center; gap: 12px; }
 }
 .gh-link:hover { color: var(--accent); }
 
+.cal-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1;
+  transition: color .2s, border-color .2s;
+  display: none;
+}
+.cal-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
 #theme-toggle {
   background: none;
   border: 1px solid var(--border);
@@ -258,11 +317,19 @@ header nav { display: flex; align-items: center; gap: 12px; }
 }
 #theme-toggle:hover { border-color: var(--accent); }
 
-/* ── Main ───────────────────────────────────────── */
-main {
-  max-width: 680px;
+/* ── Page layout ──────────────────────────────────── */
+.page-wrap {
+  max-width: 980px;
   margin: 0 auto;
   padding: 40px 24px 80px;
+  display: flex;
+  gap: 40px;
+  align-items: flex-start;
+}
+
+main {
+  flex: 0 0 680px;
+  max-width: 680px;
 }
 
 .intro {
@@ -282,8 +349,105 @@ main {
 }
 .intro a:hover { text-decoration: underline; }
 
+/* ── Calendar sidebar ────────────────────────────── */
+.cal-sidebar {
+  flex: 0 0 220px;
+  position: sticky;
+  top: 70px;
+}
+
+#calendar {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  overflow: hidden;
+  transition: border-color .3s;
+}
+
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.cal-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cal-nav {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .2s, border-color .2s;
+}
+.cal-nav:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.cal-nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
+}
+
+.cal-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.cal-grid th {
+  font-weight: 500;
+  color: var(--muted);
+  padding: 2px 0;
+  text-align: center;
+  font-size: 11px;
+}
+
+.cal-grid td {
+  text-align: center;
+  padding: 3px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cal-grid td a {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  border-radius: 50%;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 500;
+  font-size: 12px;
+  transition: background .2s, color .2s;
+}
+
+.cal-grid td a:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.cal-grid td a.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* ── Day section ────────────────────────────────── */
-.day { margin-bottom: 48px; }
+.day { margin-bottom: 48px; scroll-margin-top: 80px; }
 .day h2 {
   font-size: 20px;
   font-weight: 600;
@@ -324,11 +488,19 @@ main {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
+a.reply-badge {
+  text-decoration: none;
+  transition: background .2s;
+}
+a.reply-badge:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
 .post-link {
   margin-left: auto;
   color: var(--link-icon);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 12px;
   opacity: 0;
   transition: opacity .2s;
 }
@@ -380,16 +552,101 @@ main {
   border: 1px solid var(--border);
 }
 
+/* ── Calendar modal (mobile) ────────────────────── */
+.cal-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cal-modal-overlay[hidden] { display: none; }
+
+.cal-modal-box {
+  background: var(--bg);
+  border-radius: 14px;
+  padding: 20px;
+  width: 300px;
+  cursor: default;
+  transition: background .3s;
+}
+
+.cal-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.cal-modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cal-modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0;
+  line-height: 1;
+}
+.cal-modal-close:hover { color: var(--text); }
+
 /* ── Responsive ─────────────────────────────────── */
-@media (max-width: 600px) {
-  main { padding: 24px 16px 60px; }
+@media (max-width: 800px) {
+  .cal-sidebar { display: none; }
+  .cal-toggle { display: inline-flex; align-items: center; }
+  .page-wrap { padding: 24px 16px 60px; }
+  main { flex: none; max-width: none; }
+  .page-wrap { display: block; }
   .post { padding: 12px 14px; }
   .post-content { font-size: 14px; }
   .day h2 { font-size: 18px; }
 }
 
 /* ── Print ──────────────────────────────────────── */
-@media print { header, .post-link { display: none; } }
+@media print { header, .post-link, .cal-sidebar, .cal-toggle { display: none; } }
+
+/* ── Image lightbox ─────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.modal-overlay[hidden] { display: none; }
+.modal-overlay img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+  cursor: default;
+}
+.modal-close {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.6;
+  z-index: 201;
+  line-height: 1;
+  transition: opacity .2s;
+}
+.modal-close:hover { opacity: 1; }
 '''
 
 THEME_JS = r'''(function() {
@@ -408,6 +665,155 @@ THEME_JS = r'''(function() {
     this.textContent = isDark ? '😎' : '🌚';
   });
 })();
+
+(function() {
+  var dates = typeof ACTIVE_DATES !== 'undefined' ? ACTIVE_DATES : [];
+  var active = {};
+  dates.forEach(function(d) { active[d] = true; });
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  var months = {};
+  dates.forEach(function(d) {
+    var p = d.split('-');
+    var k = p[0] + '-' + p[1];
+    if (!months[k]) months[k] = [];
+    months[k].push(parseInt(p[2], 10));
+  });
+
+  var sortedMonths = Object.keys(months).sort();
+  var today = new Date();
+  var firstKey = sortedMonths.length ? sortedMonths[0] : null;
+  var lastKey = sortedMonths.length ? sortedMonths[sortedMonths.length - 1] : null;
+  var curKey = lastKey || (today.getFullYear() + '-' + pad(today.getMonth() + 1));
+  var curParts = curKey.split('-');
+  var curYear = parseInt(curParts[0], 10);
+  var curMonth = parseInt(curParts[1], 10);
+
+  var label = document.getElementById('cal-label');
+  var body = document.getElementById('cal-body');
+  var prevBtn = document.getElementById('cal-prev');
+  var nextBtn = document.getElementById('cal-next');
+
+  function render(year, month) {
+    var first = new Date(year, month - 1, 1);
+    var last = new Date(year, month, 0);
+    var startDay = (first.getDay() + 6) % 7;
+    var daysInMonth = last.getDate();
+    var now = new Date();
+    var isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+    var todayDate = now.getDate();
+
+    var monthNames = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+    label.textContent = monthNames[month - 1] + ' ' + year;
+
+    var key = year + '-' + pad(month);
+    var activeDays = months[key] || [];
+    var activeSet = {};
+    activeDays.forEach(function(d) { activeSet[d] = true; });
+
+    var html = '<tr>';
+    for (var i = 0; i < startDay; i++) {
+      html += '<td></td>';
+    }
+    for (var day = 1; day <= daysInMonth; day++) {
+      var idx = startDay + day - 1;
+      if (idx > 0 && idx % 7 === 0) html += '</tr><tr>';
+      var isActive = activeSet[day] || false;
+      var isToday = isCurrentMonth && day === todayDate;
+      if (isActive) {
+        var dateStr = year + '-' + pad(month) + '-' + pad(day);
+        html += '<td><a href="#' + dateStr + '" class="active">' + day + '</a></td>';
+      } else {
+        html += '<td' + (isToday ? ' style="font-weight:600"' : '') + '>' + day + '</td>';
+      }
+    }
+    html += '</tr>';
+    body.innerHTML = html;
+
+    prevBtn.disabled = !months[_adjKey(year, month, -1)];
+    nextBtn.disabled = !months[_adjKey(year, month, 1)];
+  }
+
+  function _adjKey(year, month, delta) {
+    var m = month + delta;
+    var y = year;
+    if (m < 1) { m = 12; y--; }
+    if (m > 12) { m = 1; y++; }
+    return y + '-' + pad(m);
+  }
+
+  function goTo(delta) {
+    curMonth += delta;
+    if (curMonth < 1) { curMonth = 12; curYear--; }
+    if (curMonth > 12) { curMonth = 1; curYear++; }
+    render(curYear, curMonth);
+  }
+
+  if (prevBtn) prevBtn.addEventListener('click', function() { goTo(-1); });
+  if (nextBtn) nextBtn.addEventListener('click', function() { goTo(1); });
+
+  render(curYear, curMonth);
+})();
+
+(function() {
+  var modal = document.getElementById('image-modal');
+  var modalImg = document.getElementById('modal-img');
+  var modalClose = document.getElementById('modal-close');
+
+  document.addEventListener('click', function(e) {
+    if (e.target.tagName === 'IMG' && e.target.closest('.post-images')) {
+      modal.removeAttribute('hidden');
+      modalImg.src = e.target.src;
+    }
+  });
+
+  function close() {
+    modal.setAttribute('hidden', '');
+    modalImg.src = '';
+  }
+
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal || e.target === modalClose) close();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !modal.hasAttribute('hidden')) close();
+  });
+})();
+
+(function() {
+  var calModal = document.getElementById('cal-modal');
+  var calBody = document.getElementById('cal-modal-body');
+  var calToggle = document.getElementById('cal-toggle');
+  var calClose = document.getElementById('cal-modal-close');
+
+  if (!calToggle || !calModal) return;
+
+  function openCal() {
+    var src = document.getElementById('calendar');
+    if (!src) return;
+    var clone = src.cloneNode(true);
+    calBody.innerHTML = '';
+    calBody.appendChild(clone);
+    calModal.removeAttribute('hidden');
+
+    clone.querySelectorAll('a[href^="#"]').forEach(function(a) {
+      a.addEventListener('click', function() {
+        calModal.setAttribute('hidden', '');
+      });
+    });
+  }
+
+  calToggle.addEventListener('click', openCal);
+
+  calModal.addEventListener('click', function(e) {
+    if (e.target === calModal || e.target === calClose) {
+      calModal.setAttribute('hidden', '');
+    }
+  });
+})();
 '''
 
 
@@ -420,12 +826,13 @@ def main():
         return
 
     parent_lookup = build_parent_lookup(posts)
+    known_ids = set(parent_lookup.keys())
     days = group_by_date(posts)
 
     os.makedirs(DIST_DIR, exist_ok=True)
 
     with open(os.path.join(DIST_DIR, 'index.html'), 'w') as f:
-        f.write(generate_html(days))
+        f.write(generate_html(days, known_ids))
 
     with open(os.path.join(DIST_DIR, 'style.css'), 'w') as f:
         f.write(STYLE_CSS)
