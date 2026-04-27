@@ -161,7 +161,7 @@ def render_calendar_sidebar():
 </aside>'''
 
 
-def generate_html(days, known_ids):
+def generate_html(days, known_ids, total):
     sections = '\n'.join(render_day(d, ps, known_ids) for d, ps in days.items())
     dates_json = json.dumps(sorted(days.keys()))
     cal_sidebar = render_calendar_sidebar()
@@ -173,7 +173,7 @@ def generate_html(days, known_ids):
 <title>Chronobsky Archive</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -190,7 +190,7 @@ def generate_html(days, known_ids):
 <div class="page-wrap">
 <main>
 <section class="intro">
-  <p>Posts from <a href="https://bsky.app/profile/{_escape(HANDLE)}" target="_blank" rel="noopener">@{_escape(HANDLE)}</a> on bsky.social as a blog</p>
+  <p><span class="post-count">{total} posts</span> from <a href="https://bsky.app/profile/{_escape(HANDLE)}" target="_blank" rel="noopener">@{_escape(HANDLE)}</a> on bsky.social</p>
 </section>
 {sections}
 </main>
@@ -276,7 +276,7 @@ header {
   padding: 12px 24px;
 }
 
-header h1 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+header h1 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
 header h1 a { color: var(--text); text-decoration: none; }
 
 header nav { display: flex; align-items: center; gap: 12px; }
@@ -348,6 +348,11 @@ main {
   font-weight: 500;
 }
 .intro a:hover { text-decoration: underline; }
+
+.post-count {
+  font-weight: 500;
+  color: var(--text);
+}
 
 /* ── Calendar sidebar ────────────────────────────── */
 .cal-sidebar {
@@ -828,11 +833,12 @@ def main():
     parent_lookup = build_parent_lookup(posts)
     known_ids = set(parent_lookup.keys())
     days = group_by_date(posts)
+    total = sum(len(v) for v in days.values())
 
     os.makedirs(DIST_DIR, exist_ok=True)
 
     with open(os.path.join(DIST_DIR, 'index.html'), 'w') as f:
-        f.write(generate_html(days, known_ids))
+        f.write(generate_html(days, known_ids, total))
 
     with open(os.path.join(DIST_DIR, 'style.css'), 'w') as f:
         f.write(STYLE_CSS)
@@ -840,7 +846,6 @@ def main():
     with open(os.path.join(DIST_DIR, 'theme.js'), 'w') as f:
         f.write(THEME_JS)
 
-    total = sum(len(v) for v in days.values())
     print(f'Generated dist/ — {len(days)} days, {total} posts.')
 
 
