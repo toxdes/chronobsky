@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "font": {
+    "family": "Inter",
+    "weights": [400, 500, 600],
+    "source": "google",
+    "url": null
+  },
+  "border_radius": "0.75rem",
+  "base_font_size": "1rem",
+  "layout": {
+    "header": ["logo", "source_link", "dark_mode_toggle"],
+    "sidebar": ["quick_nav", "calendar"],
+    "content": ["description"]
+  },
+  "widgets": {
+    "logo": { "text": "Chronobsky", "url": "#" },
+    "source_link": { "text": "Source", "url": "https://github.com/toxdes/chronobsky" },
+    "dark_mode_toggle": {},
+    "calendar": {},
+    "description": { "text": "{count} posts from @{handle} on bsky.social" },
+    "quick_nav":{}
+  },
+  "theme": {
+    "light": {
+      "bg": "#ffffff",
+      "text": "#0f172a",
+      "border": "#e2e8f0",
+      "accent": "#2563eb",
+      "muted": "#64748b",
+      "reply_bg": "#f1f5f9",
+      "header_bg": "rgba(255, 255, 255, 0.85)",
+      "link_icon": "#cbd5e1"
+    },
+    "dark": {
+      "bg": "#0f172a",
+      "text": "#e2e8f0",
+      "border": "#1e293b",
+      "accent": "#60a5fa",
+      "muted": "#94a3b8",
+      "reply_bg": "#1e293b",
+      "header_bg": "rgba(15, 23, 42, 0.85)",
+      "link_icon": "#475569"
+    }
+  }
+}
