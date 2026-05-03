@@ -26,6 +26,24 @@ def _post_url(uri, handle):
     return f'https://bsky.app/profile/{handle}/post/{_rkey(uri)}'
 
 
+# Facets use byte offsets into the UTF-8 encoded text
+def _apply_facets(text, facets):
+    if not facets:
+        return text
+    sorted_facets = sorted(facets, key=lambda f: f['index']['byteStart'], reverse=True)
+    text_bytes = text.encode('utf-8')
+    for facet in sorted_facets:
+        for feature in facet.get('features', []):
+            if feature.get('$type') == 'app.bsky.richtext.facet#link':
+                uri = feature.get('uri', '')
+                if not uri:
+                    continue
+                start = facet['index']['byteStart']
+                end = facet['index']['byteEnd']
+                text_bytes = text_bytes[:start] + uri.encode('utf-8') + text_bytes[end:]
+    return text_bytes.decode('utf-8')
+
+
 def fetch_feed(client, actor, cursor=None):
     params = {'actor': actor, 'limit': 100}
     if cursor:
@@ -48,7 +66,7 @@ def transform_feed_item(item, actor):
     parent_id = record['reply'].get('parent', {}).get('uri') if is_reply else None
 
     created_at = record.get('createdAt', '')
-    content = record.get('text', '')
+    content = _apply_facets(record.get('text', ''), record.get('facets'))
     if not created_at:
         return None
 
