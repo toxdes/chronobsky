@@ -142,10 +142,10 @@ def build_parent_lookup(posts):
 # ── Formatting ──────────────────────────────────────────────────
 
 def _parse_time(iso_str):
-    s = iso_str.replace('Z', '') if iso_str.endswith('Z') else iso_str
-    if '.' in s:
-        return datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%f')
-    return datetime.strptime(s, '%Y-%m-%dT%H:%M:%S')
+    s = iso_str.replace('Z', '+00:00') if iso_str.endswith('Z') else iso_str
+    dt = datetime.fromisoformat(s)
+    # Convert from UTC to local timezone, fixing time mismatch
+    return dt.astimezone()
 
 
 def format_heading_date(date_str):
@@ -159,12 +159,26 @@ def format_time_short(iso_str):
     return f'{h}:{dt.minute:02d} {"AM" if dt.hour < 12 else "PM"}'
 
 
+def format_time_full(iso_str):
+    dt = _parse_time(iso_str)
+    return dt.strftime('%B %d, %Y at %I:%M %p').lstrip('0').replace(' 0', ' ')
+
+
 def _escape(text):
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
 
 
+import re
+_TRAILING_PUNCT = re.compile(r'[.,!?:;\'\")\]}]+$')
+
 def _linkify(text):
-    return re.sub(r'(https?://[^\s<]+)', r'<a href="\1" rel="nofollow">\1</a>', text)
+    def _wrap(m):
+        url = m.group(1)
+        url = _TRAILING_PUNCT.sub('', url)
+        if not url.startswith(('http://', 'https://')):
+            return m.group(0)
+        return f'<a href="{url}" rel="nofollow">{url}</a>'
+    return re.sub(r'(https?://[^\s<]+)', _wrap, text)
 
 
 def content_to_html(text):
@@ -185,10 +199,11 @@ def render_post(post, known_ids):
     eid = _escape(post['id'])
     time_iso = post['created_at']
     time_short = format_time_short(time_iso)
+    time_full = format_time_full(time_iso)
 
     lines = [f'<article class="{cls}" id="{eid}">']
     lines.append('  <div class="post-meta">')
-    lines.append(f'    <time datetime="{_escape(time_iso)}">{_escape(time_short)}</time>')
+    lines.append(f'    <time datetime="{_escape(time_iso)}" title="{_escape(time_full)}">{_escape(time_short)}</time>')
     if is_reply:
         pid = post['parent_id']
         if pid in known_ids:
@@ -401,14 +416,13 @@ def _theme_vars(cfg):
 def _reset_css(family, base_size):
     return f'''/* ── Reset ──────────────────────────────────────── */
 *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-html {{ scroll-behavior: smooth; }}
+html {{ scroll-behavior: smooth; font-size: {base_size}; }}
 
 body {{
   font-family: '{family}', system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.7;
-  font-size: {base_size};
   -webkit-font-smoothing: antialiased;
   transition: background .3s, color .3s;
 }}'''
