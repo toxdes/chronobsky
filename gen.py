@@ -40,11 +40,11 @@ DEFAULT_CONFIG = {
         "source": "google",
         "url": None,
     },
-    "radius": "0.75rem",
+    "border_radius": "0.75rem",
     "base_font_size": "1rem",
     "layout": {
         "header": ["logo", "source_link", "dark_mode_toggle"],
-        "sidebar": ["calendar"],
+        "sidebar": ["calendar", "quick_nav"],
         "content": ["description"],
     },
     "widgets": {
@@ -60,6 +60,12 @@ DEFAULT_CONFIG = {
         "calendar": {},
         "description": {
             "text": "{count} posts from @{handle} on bsky.social",
+        },
+        "quick_nav": {
+            "label_today": "Today",
+            "label_week": "Week",
+            "label_month": "Month",
+            "label_year": "Year",
         },
     },
     "theme": {
@@ -207,7 +213,7 @@ def render_post(post, known_ids):
     if is_reply:
         pid = post['parent_id']
         if pid in known_ids:
-            lines.append(f'    <a href="#{_escape(pid)}" class="reply-badge">↳ Reply</a>')
+            lines.append(f'    <a href="#{_escape(pid)}" class="reply-badge" title="Go to parent post">↳ Reply</a>')
         else:
             lines.append('    <span class="reply-badge">↳ Reply</span>')
     if post.get('post_url'):
@@ -226,7 +232,7 @@ def render_post(post, known_ids):
     quoted_id = post.get('quoted_post_id')
     if quoted_id:
         eq = _escape(quoted_id)
-        lines.append(f'  <a href="#{eq}" class="quote-link">Quoted post</a>')
+        lines.append(f'  <a href="#{eq}" class="quote-link" title="Go to quoted post">Quoted post</a>')
 
     lines.append('</article>')
     return '\n'.join(lines)
@@ -282,7 +288,7 @@ def _render_font_link(cfg):
     return ''
 
 
-def _nav_item_html(name, cfg):
+def _nav_item_html(name, cfg, all_dates=None):
     w = cfg['widgets']
     if name == 'source_link':
         sl = w['source_link']
@@ -291,26 +297,73 @@ def _nav_item_html(name, cfg):
         return '<button id="theme-toggle" aria-label="Toggle theme">🌚</button>'
     if name == 'calendar':
         return '<button id="cal-toggle" class="cal-toggle">Cal</button>'
+    if name == 'quick_nav' and all_dates:
+        return _quick_nav_html(cfg, all_dates)
     return ''
 
 
-def _sidebar_html(name, cfg):
+def _sidebar_html(name, cfg, all_dates=None):
     if name == 'calendar':
         return render_calendar_sidebar()
+    if name == 'quick_nav' and all_dates:
+        return _quick_nav_html(cfg, all_dates)
     return ''
 
 
-def _content_html(name, cfg, total):
+def _content_html(name, cfg, total, all_dates=None):
     if name == 'description':
         desc_text = cfg['widgets']['description'].get('text', '')
         desc_text = desc_text.replace('{count}', f'<span class="post-count">{total}</span>').replace('{handle}', HANDLE)
         return f'<section class="intro"><p>{desc_text}</p></section>'
+    if name == 'quick_nav' and all_dates:
+        return _quick_nav_html(cfg, all_dates)
     return ''
+
+
+def _resolve_quick_nav_dates(all_dates):
+    from datetime import date, timedelta
+    today = date.today()
+    today_str = today.isoformat()
+    monday = (today - timedelta(days=today.weekday())).isoformat()
+    month_start = today.replace(day=1).isoformat()
+    year_start = today.replace(month=1, day=1).isoformat()
+
+    def nearest(target, forward=True):
+        if target in all_dates:
+            return target
+        if forward:
+            for d in all_dates:
+                if d >= target:
+                    return d
+            return all_dates[-1]
+        for d in reversed(all_dates):
+            if d <= target:
+                return d
+        return all_dates[0]
+
+    return (
+        nearest(today_str, forward=False),
+        nearest(monday, forward=True),
+        nearest(month_start, forward=True),
+        nearest(year_start, forward=True),
+    )
+
+
+def _quick_nav_html(cfg, all_dates):
+    w = cfg['widgets']['quick_nav']
+    t, wd, m, y = _resolve_quick_nav_dates(all_dates)
+    return f'''<div class="quick-nav">
+  <a href="#{t}" class="qn-btn">{_escape(w.get('label_today', 'Today'))}</a>
+  <a href="#{wd}" class="qn-btn">{_escape(w.get('label_week', 'Week'))}</a>
+  <a href="#{m}" class="qn-btn">{_escape(w.get('label_month', 'Month'))}</a>
+  <a href="#{y}" class="qn-btn">{_escape(w.get('label_year', 'Year'))}</a>
+</div>'''
 
 
 def generate_html(days, known_ids, total, cfg):
     sections = '\n'.join(render_day(d, ps, known_ids) for d, ps in days.items())
     dates_json = json.dumps(sorted(days.keys()))
+    all_dates = sorted(days.keys())
     font_link = _render_font_link(cfg)
     layout = cfg['layout']
     w = cfg['widgets']
@@ -327,24 +380,24 @@ def generate_html(days, known_ids, total, cfg):
     for name in layout.get('header', []):
         if name == 'logo':
             continue
-        html = _nav_item_html(name, cfg)
+        html = _nav_item_html(name, cfg, all_dates)
         if html:
             nav_items.append(html)
     if has_calendar:
-        nav_items.append(_nav_item_html('calendar', cfg))
+        nav_items.append(_nav_item_html('calendar', cfg, all_dates))
     nav_html = '\n      '.join(nav_items)
 
     # Sidebar
     sidebar_html = ''
     for name in layout.get('sidebar', []):
-        html = _sidebar_html(name, cfg)
+        html = _sidebar_html(name, cfg, all_dates)
         if html:
             sidebar_html += html
 
     # Content above posts
     content_top = ''
     for name in layout.get('content', []):
-        html = _content_html(name, cfg, total)
+        html = _content_html(name, cfg, total, all_dates)
         if html:
             content_top += html
 
@@ -398,7 +451,7 @@ var ACTIVE_DATES = {dates_json};
 
 def _theme_vars(cfg):
     t = cfg['theme']
-    radius = cfg.get('radius', '0.75rem')
+    radius = str(cfg.get('border_radius', '0.75rem'))
     out = ['/* ── Variables ────────────────────────────────────── */',
            ':root {']
     out.append(f'  --radius: {radius};')
@@ -552,6 +605,21 @@ def _image_css():
   border: 1px solid var(--border);
 }'''
 
+def _quick_nav_css():
+    return '''/* ── Quick nav ──────────────────────────────────── */
+.quick-nav { display: flex; gap: 0.375rem; }
+.qn-btn {
+  flex: 1; text-align: center; padding: 0.3125rem 0;
+  font-size: 0.75rem; font-weight: 500; color: var(--accent);
+  text-decoration: none; border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: background .2s, border-color .2s;
+}
+.qn-btn:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent);
+}'''
+
 def _calendar_sidebar_css():
     return '''/* ── Calendar sidebar ────────────────────────────── */
 .cal-sidebar { flex: 0 0 220px; position: sticky; top: 4.375rem; }
@@ -570,9 +638,9 @@ def _calendar_sidebar_css():
 }
 .cal-nav:hover { color: var(--accent); border-color: var(--accent); }
 .cal-nav:disabled { opacity: 0.25; cursor: default; pointer-events: none; }
-.cal-grid { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-.cal-grid th { font-weight: 500; color: var(--muted); padding: 0.125rem 0; text-align: center; font-size: 0.6875rem; }
-.cal-grid td { text-align: center; padding: 0.1875rem 0; color: var(--muted); font-size: 0.75rem; }
+.cal-grid { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.75rem; }
+.cal-grid th { font-weight: 500; color: var(--muted); padding: 0.125rem 0; text-align: center; font-size: 0.6875rem; width: calc(100% / 7); }
+.cal-grid td { text-align: center; padding: 0.1875rem 0; color: var(--muted); font-size: 0.75rem; width: calc(100% / 7); }
 .cal-grid td a {
   display: flex; align-items: center; justify-content: center;
   width: 1.5rem; height: 1.5rem; margin: 0 auto;
@@ -646,6 +714,7 @@ def _print_css(cal_visible):
 
 def generate_style_css(cfg):
     has_cal = 'calendar' in cfg['layout'].get('sidebar', [])
+    has_qn = 'quick_nav' in cfg['layout'].get('sidebar', []) or 'quick_nav' in cfg['layout'].get('content', [])
     parts = [
         _theme_vars(cfg),
         _reset_css(cfg['font']['family'], cfg['base_font_size']),
@@ -660,6 +729,8 @@ def generate_style_css(cfg):
         parts.append(_cal_toggle_css())
         parts.append(_calendar_sidebar_css())
         parts.append(_cal_modal_css())
+    if has_qn:
+        parts.append(_quick_nav_css())
     parts.append(_lightbox_css())
     parts.append(_responsive_css(has_cal))
     parts.append(_print_css(has_cal))

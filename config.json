@@ -6,11 +6,11 @@
     "source": "google",
     "url": null
   },
-  "radius": "0.75rem",
+  "border_radius": "0.75rem",
   "base_font_size": "1rem",
   "layout": {
     "header": ["logo", "source_link", "dark_mode_toggle"],
-    "sidebar": ["calendar"],
+    "sidebar": ["calendar", "quick_nav"],
     "content": ["description"]
   },
   "widgets": {
