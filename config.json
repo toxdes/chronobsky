@@ -6,6 +6,7 @@
     "source": "google",
     "url": null
   },
+  "radius": "0.75rem",
   "layout": {
     "header": ["logo", "source_link", "dark_mode_toggle"],
     "sidebar": ["calendar"],

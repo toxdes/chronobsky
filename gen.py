@@ -40,6 +40,7 @@ DEFAULT_CONFIG = {
         "source": "google",
         "url": None,
     },
+    "radius": "0.75rem",
     "layout": {
         "header": ["logo", "source_link", "dark_mode_toggle"],
         "sidebar": ["calendar"],
@@ -339,7 +340,8 @@ def generate_html(days, known_ids, total, cfg):
     if sidebar_html:
         modals += render_calendar_modal()
 
-    content_wrap = 'page-wrap' if sidebar_html else ''
+    wrap_open = f'<div class="page-wrap">' if sidebar_html else ''
+    wrap_close = '</div>' if sidebar_html else ''
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -360,13 +362,13 @@ def generate_html(days, known_ids, total, cfg):
     </nav>
   </div>
 </header>
-<div class="{content_wrap}">
+{wrap_open}
 <main>
 {content_top}
 {sections}
 </main>
 {sidebar_html}
-</div>
+{wrap_close}
 {modals}
 <script>
 var ACTIVE_DATES = {dates_json};
@@ -380,8 +382,10 @@ var ACTIVE_DATES = {dates_json};
 
 def _theme_vars(cfg):
     t = cfg['theme']
+    radius = cfg.get('radius', '0.75rem')
     out = ['/* ── Variables ────────────────────────────────────── */',
            ':root {']
+    out.append(f'  --radius: {radius};')
     for k, v in t['light'].items():
         out.append(f'  --{k.replace("_", "-")}: {v};')
     out.append('}')
@@ -432,7 +436,7 @@ header nav { display: flex; align-items: center; gap: 0.75rem; }
 }
 .gh-link:hover { color: var(--accent); }
 #theme-toggle {
-  background: none; border: 1px solid var(--border); border-radius: 0.5rem;
+  background: none; border: 1px solid var(--border); border-radius: var(--radius);
   padding: 0.375rem 0.625rem; font-size: 1.125rem; cursor: pointer; line-height: 1;
   transition: border-color .2s;
 }
@@ -441,7 +445,7 @@ header nav { display: flex; align-items: center; gap: 0.75rem; }
 
 def _cal_toggle_css():
     return '''.cal-toggle {
-  background: none; border: 1px solid var(--border); border-radius: 0.5rem;
+  background: none; border: 1px solid var(--border); border-radius: var(--radius);
   padding: 0.375rem 0.625rem; font-size: 0.8125rem; font-weight: 500; cursor: pointer;
   color: var(--muted); line-height: 1; display: none;
   transition: color .2s, border-color .2s;
@@ -454,7 +458,10 @@ def _layout_css():
   max-width: 980px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem;
   display: flex; gap: 2.5rem; align-items: flex-start;
 }
-main { flex: 0 0 680px; max-width: 680px; }
+main {
+  max-width: 680px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem;
+}
+.page-wrap > main { flex: 0 0 680px; margin: 0; padding: 0; }
 .intro {
   margin-bottom: 2.5rem; padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--border);
@@ -478,7 +485,7 @@ def _day_css():
 def _post_css():
     return '''/* ── Post card ──────────────────────────────────── */
 .post {
-  margin-bottom: 1rem; padding: 1rem 1.25rem; border-radius: 0.75rem;
+  margin-bottom: 1rem; padding: 1rem 1.25rem; border-radius: var(--radius);
   border: 1px solid var(--border); scroll-margin-top: 4.375rem;
   transition: border-color .3s, background .3s;
 }
@@ -490,7 +497,7 @@ def _post_css():
 .post-meta time { font-weight: 500; }
 .reply-badge {
   font-size: 0.6875rem; font-weight: 600; color: var(--accent);
-  padding: 0.0625rem 0.375rem; border-radius: 0.25rem;
+  padding: 0.0625rem 0.375rem; border-radius: var(--radius);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 a.reply-badge { text-decoration: none; transition: background .2s; }
@@ -504,7 +511,7 @@ a.reply-badge:hover { background: color-mix(in srgb, var(--accent) 20%, transpar
 .quote-link {
   display: inline-block; margin-top: 0.625rem; font-size: 0.8125rem; font-weight: 500;
   color: var(--accent); text-decoration: none; padding: 0.1875rem 0.625rem;
-  border-radius: 0.375rem; border: 1px solid var(--border);
+  border-radius: var(--radius); border: 1px solid var(--border);
   transition: background .2s, border-color .2s;
 }
 .quote-link:hover {
@@ -526,7 +533,7 @@ def _image_css():
     return '''/* ── Images ─────────────────────────────────────── */
 .post-images { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
 .post-images img {
-  max-width: 100%; height: auto; border-radius: 0.5rem;
+  max-width: 100%; height: auto; border-radius: var(--radius);
   border: 1px solid var(--border);
 }'''
 
@@ -534,13 +541,13 @@ def _calendar_sidebar_css():
     return '''/* ── Calendar sidebar ────────────────────────────── */
 .cal-sidebar { flex: 0 0 220px; position: sticky; top: 4.375rem; }
 #calendar {
-  border: 1px solid var(--border); border-radius: 0.625rem;
+  border: 1px solid var(--border); border-radius: var(--radius);
   padding: 0.75rem; overflow: hidden; transition: border-color .3s;
 }
 .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.625rem; }
 .cal-label { font-size: 0.8125rem; font-weight: 600; color: var(--text); }
 .cal-nav {
-  background: none; border: 1px solid var(--border); border-radius: 0.375rem;
+  background: none; border: 1px solid var(--border); border-radius: var(--radius);
   padding: 0 0.5rem; font-size: 0.875rem; cursor: pointer; color: var(--muted);
   line-height: 1; height: 1.625rem;
   display: flex; align-items: center; justify-content: center;
@@ -569,7 +576,7 @@ def _cal_modal_css():
 }
 .cal-modal-overlay[hidden] { display: none; }
 .cal-modal-box {
-  background: var(--bg); border-radius: 0.875rem; padding: 1.25rem;
+  background: var(--bg); border-radius: var(--radius); padding: 1.25rem;
   width: 300px; cursor: default; transition: background .3s;
 }
 .cal-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
@@ -588,7 +595,7 @@ def _lightbox_css():
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .modal-overlay[hidden] { display: none; }
-.modal-overlay img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 0.25rem; cursor: default; }
+.modal-overlay img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: var(--radius); cursor: default; }
 .modal-close {
   position: fixed; top: 1rem; right: 1rem;
   background: none; border: none; font-size: 2rem; color: #fff;
@@ -604,7 +611,7 @@ def _responsive_css(cal_visible):
         parts.append('  .cal-sidebar { display: none; }')
         parts.append('  .cal-toggle { display: inline-flex; align-items: center; }')
     parts.extend([
-        '  .page-wrap { padding: 1.5rem 1rem 3.75rem; }',
+        '  .page-wrap, main { padding: 1.5rem 1rem 3.75rem; }',
         '  main { flex: none; max-width: none; }',
         '  .page-wrap { display: block; }',
         '  .post { padding: 0.75rem 0.875rem; }',
