@@ -70,6 +70,7 @@ def _download_and_save(posts, tweets_dir):
 def _fetch_all(client, handle):
     import bsky.config as cfg_mod
     import bsky.media as media_mod
+    import bsky.storage as storage_mod
     import shutil
 
     temp_dir = os.path.join(cfg_mod.ROOT, 'tweets_new')
@@ -80,6 +81,7 @@ def _fetch_all(client, handle):
     old_tweets_dir = cfg_mod.TWEETS_DIR
     cfg_mod.TWEETS_DIR = temp_dir
     media_mod.TWEETS_DIR = temp_dir
+    storage_mod.TWEETS_DIR = temp_dir
 
     try:
         posts = _fetch_posts(client, handle, cutoff=None)
@@ -116,6 +118,7 @@ def _fetch_all(client, handle):
     finally:
         cfg_mod.TWEETS_DIR = old_tweets_dir
         media_mod.TWEETS_DIR = old_tweets_dir
+        storage_mod.TWEETS_DIR = old_tweets_dir
 
 
 def main():
