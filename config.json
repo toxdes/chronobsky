@@ -10,7 +10,7 @@
   "base_font_size": "1rem",
   "layout": {
     "header": ["logo", "source_link", "dark_mode_toggle"],
-    "sidebar": ["calendar", "quick_nav"],
+    "sidebar": ["quick_nav", "calendar"],
     "content": ["description"]
   },
   "widgets": {
@@ -18,7 +18,8 @@
     "source_link": { "text": "Source", "url": "https://github.com/toxdes/chronobsky" },
     "dark_mode_toggle": {},
     "calendar": {},
-    "description": { "text": "{count} posts from @{handle} on bsky.social" }
+    "description": { "text": "{count} posts from @{handle} on bsky.social" },
+    "quick_nav":{}
   },
   "theme": {
     "light": {

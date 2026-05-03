@@ -248,8 +248,7 @@ def render_day(date_str, posts, known_ids):
 
 
 def render_calendar_sidebar():
-    return '''<aside class="cal-sidebar">
-  <div id="calendar">
+    return '''  <div id="calendar">
     <div class="cal-header">
       <button id="cal-prev" class="cal-nav">&lt;</button>
       <span id="cal-label" class="cal-label"></span>
@@ -261,18 +260,17 @@ def render_calendar_sidebar():
       </thead>
       <tbody id="cal-body"></tbody>
     </table>
-  </div>
-</aside>'''
+  </div>'''
 
 
-def render_calendar_modal():
-    return '''<div id="cal-modal" class="cal-modal-overlay" hidden>
-  <div class="cal-modal-box">
-    <div class="cal-modal-header">
-      <span class="cal-modal-title">Calendar</span>
-      <button id="cal-modal-close" class="cal-modal-close">&times;</button>
+def render_sidebar_modal():
+    return '''<div id="sidebar-modal" class="sidebar-modal-overlay" hidden>
+  <div class="sidebar-modal-box">
+    <div class="sidebar-modal-header">
+      <span class="sidebar-modal-title">Navigate</span>
+      <button id="sidebar-modal-close" class="sidebar-modal-close">&times;</button>
     </div>
-    <div id="cal-modal-body"></div>
+    <div id="sidebar-modal-body"></div>
   </div>
 </div>'''
 
@@ -296,7 +294,7 @@ def _nav_item_html(name, cfg, all_dates=None):
     if name == 'dark_mode_toggle':
         return '<button id="theme-toggle" aria-label="Toggle theme">🌚</button>'
     if name == 'calendar':
-        return '<button id="cal-toggle" class="cal-toggle">Cal</button>'
+        return '<button id="sidebar-toggle" class="sidebar-toggle">&#8942;</button>'
     if name == 'quick_nav' and all_dates:
         return _quick_nav_html(cfg, all_dates)
     return ''
@@ -352,12 +350,12 @@ def _resolve_quick_nav_dates(all_dates):
 def _quick_nav_html(cfg, all_dates):
     w = cfg['widgets']['quick_nav']
     t, wd, m, y = _resolve_quick_nav_dates(all_dates)
-    return f'''<div class="quick-nav">
-  <a href="#{t}" class="qn-btn">{_escape(w.get('label_today', 'Today'))}</a>
-  <a href="#{wd}" class="qn-btn">{_escape(w.get('label_week', 'Week'))}</a>
-  <a href="#{m}" class="qn-btn">{_escape(w.get('label_month', 'Month'))}</a>
+    return f'''<p class="quick-nav">
+  Jump to: <a href="#{t}" class="qn-btn">{_escape(w.get('label_today', 'Today'))}</a>,
+  <a href="#{wd}" class="qn-btn">{_escape(w.get('label_week', 'Week'))}</a>,
+  <a href="#{m}" class="qn-btn">{_escape(w.get('label_month', 'Month'))}</a>,
   <a href="#{y}" class="qn-btn">{_escape(w.get('label_year', 'Year'))}</a>
-</div>'''
+</p>'''
 
 
 def generate_html(days, known_ids, total, cfg):
@@ -387,12 +385,14 @@ def generate_html(days, known_ids, total, cfg):
         nav_items.append(_nav_item_html('calendar', cfg, all_dates))
     nav_html = '\n      '.join(nav_items)
 
-    # Sidebar
+    # Sidebar — wrap all widgets in a single column
     sidebar_html = ''
     for name in layout.get('sidebar', []):
         html = _sidebar_html(name, cfg, all_dates)
         if html:
             sidebar_html += html
+    if sidebar_html:
+        sidebar_html = f'<aside class="sidebar">\n{sidebar_html}\n</aside>'
 
     # Content above posts
     content_top = ''
@@ -407,7 +407,7 @@ def generate_html(days, known_ids, total, cfg):
   <img id="modal-img" src="" alt="">
 </div>'''
     if sidebar_html:
-        modals += render_calendar_modal()
+        modals += render_sidebar_modal()
 
     wrap_open = f'<div class="page-wrap">' if sidebar_html else ''
     wrap_close = '</div>' if sidebar_html else ''
@@ -511,14 +511,14 @@ header nav { display: flex; align-items: center; gap: 0.75rem; }
 #theme-toggle:hover { border-color: var(--accent); }'''
 
 
-def _cal_toggle_css():
-    return '''.cal-toggle {
+def _sidebar_toggle_css():
+    return '''.sidebar-toggle {
   background: none; border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 0.375rem 0.625rem; font-size: 0.8125rem; font-weight: 500; cursor: pointer;
+  padding: 0.375rem 0.625rem; font-size: 1.125rem; cursor: pointer;
   color: var(--muted); line-height: 1; display: none;
   transition: color .2s, border-color .2s;
 }
-.cal-toggle:hover { color: var(--accent); border-color: var(--accent); }'''
+.sidebar-toggle:hover { color: var(--accent); border-color: var(--accent); }'''
 
 def _layout_css():
     return '''/* ── Page layout ──────────────────────────────────── */
@@ -607,22 +607,13 @@ def _image_css():
 
 def _quick_nav_css():
     return '''/* ── Quick nav ──────────────────────────────────── */
-.quick-nav { display: flex; gap: 0.375rem; }
-.qn-btn {
-  flex: 1; text-align: center; padding: 0.3125rem 0;
-  font-size: 0.75rem; font-weight: 500; color: var(--accent);
-  text-decoration: none; border: 1px solid var(--border);
-  border-radius: var(--radius);
-  transition: background .2s, border-color .2s;
-}
-.qn-btn:hover {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border-color: var(--accent);
-}'''
+.quick-nav { font-size: 0.75rem; color: var(--muted); }
+.qn-btn { font-weight: 500; color: var(--accent); text-decoration: none; }
+.qn-btn:hover { text-decoration: underline; }'''
 
 def _calendar_sidebar_css():
-    return '''/* ── Calendar sidebar ────────────────────────────── */
-.cal-sidebar { flex: 0 0 220px; position: sticky; top: 4.375rem; }
+    return '''/* ── Calendar ──────────────────────────────────── */
+.sidebar { flex: 0 0 220px; position: sticky; top: 4.375rem; display: flex; flex-direction: column; gap: 0.75rem; }
 #calendar {
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 0.75rem; overflow: hidden; transition: border-color .3s;
@@ -650,25 +641,26 @@ def _calendar_sidebar_css():
 .cal-grid td a:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 .cal-grid td a.active { color: var(--accent); font-weight: 600; }'''
 
-def _cal_modal_css():
-    return '''/* ── Calendar modal (mobile) ────────────────────── */
-.cal-modal-overlay {
+def _sidebar_modal_css():
+    return '''/* ── Sidebar modal (mobile) ────────────────────── */
+.sidebar-modal-overlay {
   position: fixed; inset: 0; z-index: 200;
   background: rgba(0, 0, 0, 0.5);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
-.cal-modal-overlay[hidden] { display: none; }
-.cal-modal-box {
+.sidebar-modal-overlay[hidden] { display: none; }
+.sidebar-modal-box {
   background: var(--bg); border-radius: var(--radius); padding: 1.25rem;
   width: 300px; cursor: default; transition: background .3s;
 }
-.cal-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
-.cal-modal-title { font-size: 0.9375rem; font-weight: 600; color: var(--text); }
-.cal-modal-close {
+.sidebar-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.sidebar-modal-title { font-size: 0.9375rem; font-weight: 600; color: var(--text); }
+.sidebar-modal-close {
   background: none; border: none; font-size: 1.375rem; cursor: pointer;
   color: var(--muted); padding: 0; line-height: 1;
 }
-.cal-modal-close:hover { color: var(--text); }'''
+.sidebar-modal-close:hover { color: var(--text); }
+#sidebar-modal .sidebar { display: flex; }'''
 
 def _lightbox_css():
     return '''/* ── Image lightbox ─────────────────────────────── */
@@ -691,8 +683,8 @@ def _responsive_css(cal_visible):
     parts = ['/* ── Responsive ─────────────────────────────────── */',
              '@media (max-width: 800px) {']
     if cal_visible:
-        parts.append('  .cal-sidebar { display: none; }')
-        parts.append('  .cal-toggle { display: inline-flex; align-items: center; }')
+        parts.append('  .sidebar { display: none; }')
+        parts.append('  .sidebar-toggle { display: inline-flex; align-items: center; }')
     parts.extend([
         '  .page-wrap, main { padding: 1.5rem 1rem 3.75rem; }',
         '  main { flex: none; max-width: none; }',
@@ -708,7 +700,7 @@ def _responsive_css(cal_visible):
 def _print_css(cal_visible):
     hide = 'header, .post-link'
     if cal_visible:
-        hide += ', .cal-sidebar, .cal-toggle'
+        hide += ', .sidebar, .sidebar-toggle'
     return f'/* ── Print ──────────────────────────────────────── */\n@media print {{ {hide} {{ display: none; }} }}'
 
 
@@ -726,9 +718,9 @@ def generate_style_css(cfg):
         _image_css(),
     ]
     if has_cal:
-        parts.append(_cal_toggle_css())
+        parts.append(_sidebar_toggle_css())
         parts.append(_calendar_sidebar_css())
-        parts.append(_cal_modal_css())
+        parts.append(_sidebar_modal_css())
     if has_qn:
         parts.append(_quick_nav_css())
     parts.append(_lightbox_css())
@@ -852,26 +844,35 @@ LIGHTBOX_JS = '''(function() {
 })();'''
 
 
-CALENDAR_MODAL_JS = '''(function() {
-  var calModal = document.getElementById('cal-modal');
-  var calBody = document.getElementById('cal-modal-body');
-  var calToggle = document.getElementById('cal-toggle');
-  var calClose = document.getElementById('cal-modal-close');
+SIDEBAR_MODAL_JS = '''(function() {
+  var calModal = document.getElementById('sidebar-modal');
+  var calBody = document.getElementById('sidebar-modal-body');
+  var calToggle = document.getElementById('sidebar-toggle');
+  var calClose = document.getElementById('sidebar-modal-close');
   if (!calToggle || !calModal) return;
 
-  function openCal() {
-    var src = document.getElementById('calendar');
-    if (!src) return;
-    var clone = src.cloneNode(true);
+  function refreshClone() {
+    var sidebar = document.querySelector('.sidebar');
+    if (!sidebar) return;
+    var clone = sidebar.cloneNode(true);
     calBody.innerHTML = '';
     calBody.appendChild(clone);
-    calModal.removeAttribute('hidden');
+
+    var prevOrig = document.getElementById('cal-prev');
+    var nextOrig = document.getElementById('cal-next');
+    clone.querySelector('#cal-prev').addEventListener('click', function() {
+      if (prevOrig) { prevOrig.click(); setTimeout(refreshClone, 30); }
+    });
+    clone.querySelector('#cal-next').addEventListener('click', function() {
+      if (nextOrig) { nextOrig.click(); setTimeout(refreshClone, 30); }
+    });
+
     clone.querySelectorAll('a[href^="#"]').forEach(function(a) {
       a.addEventListener('click', function() { calModal.setAttribute('hidden', ''); });
     });
   }
 
-  calToggle.addEventListener('click', openCal);
+  calToggle.addEventListener('click', function() { refreshClone(); calModal.removeAttribute('hidden'); });
   calModal.addEventListener('click', function(e) {
     if (e.target === calModal || e.target === calClose) calModal.setAttribute('hidden', '');
   });
@@ -884,7 +885,7 @@ def generate_theme_js(cfg):
         parts.append(THEME_TOGGLE_JS)
     if 'calendar' in cfg['layout'].get('sidebar', []):
         parts.append(CALENDAR_JS)
-        parts.append(CALENDAR_MODAL_JS)
+        parts.append(SIDEBAR_MODAL_JS)
     parts.append(LIGHTBOX_JS)
     return '\n\n'.join(parts) + '\n'
 
