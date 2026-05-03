@@ -7,6 +7,7 @@
     "url": null
   },
   "radius": "0.75rem",
+  "base_font_size": "1rem",
   "layout": {
     "header": ["logo", "source_link", "dark_mode_toggle"],
     "sidebar": ["calendar"],

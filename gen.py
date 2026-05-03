@@ -41,6 +41,7 @@ DEFAULT_CONFIG = {
         "url": None,
     },
     "radius": "0.75rem",
+    "base_font_size": "1rem",
     "layout": {
         "header": ["logo", "source_link", "dark_mode_toggle"],
         "sidebar": ["calendar"],
@@ -397,7 +398,7 @@ def _theme_vars(cfg):
     return '\n'.join(out)
 
 
-def _reset_css(family):
+def _reset_css(family, base_size):
     return f'''/* ── Reset ──────────────────────────────────────── */
 *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 html {{ scroll-behavior: smooth; }}
@@ -407,7 +408,7 @@ body {{
   background: var(--bg);
   color: var(--text);
   line-height: 1.7;
-  font-size: 1rem;
+  font-size: {base_size};
   -webkit-font-smoothing: antialiased;
   transition: background .3s, color .3s;
 }}'''
@@ -633,7 +634,7 @@ def generate_style_css(cfg):
     has_cal = 'calendar' in cfg['layout'].get('sidebar', [])
     parts = [
         _theme_vars(cfg),
-        _reset_css(cfg['font']['family']),
+        _reset_css(cfg['font']['family'], cfg['base_font_size']),
         _header_css(),
         _layout_css(),
         _day_css(),
