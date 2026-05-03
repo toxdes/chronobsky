@@ -6,7 +6,7 @@ Archives your Bluesky posts and replies locally, and generates a static blog to 
 2. `gen.py` - Generates a static website from the archived data with chronological navigation, dark/light theme, and responsive design.
 3. `deploy_vercel.py` - Deploys the generated site to Vercel as a production deployment.
 
-## .env
+## `.env` Configuration
 
 ```
 BLUESKY_HANDLE=yourhandle.bsky.social
@@ -16,10 +16,10 @@ VERCEL_TOKEN=your_vercel_api_token
 
 - `BLUESKY_HANDLE` + `BLUESKY_APP_PASSWORD` -- app password from Bluesky
   Settings > App Passwords
-- `VERCEL_TOKEN` -- API token from https://vercel.com/account/tokens (only needed for deploying)
+- `VERCEL_TOKEN` -- API token from https://vercel.com/account/tokens (for site deployment)
 
-#### Note
-Be careful with `VERCEL_TOKEN` -- these tokens are account-level and don't have project-level granularity. Consider creating a separate Vercel account for this project so your other projects remain safe in case of a token compromise.
+> [!CAUTION]
+> Be careful with `VERCEL_TOKEN` - these tokens are account-level and don't have project-level granularity. Consider creating a separate Vercel account for this project so your other projects remain safe in case of a token compromise.
 
 ## Usage
 
@@ -28,9 +28,8 @@ $ python3 fetch_bsky.py     # fetch new posts from Bluesky
 $ python3 gen.py            # generate static site in dist/
 $ python3 deploy_vercel.py  # deploy dist/ to Vercel
 $ ./run.sh                  # run all three in sequence
-
-See [config.md](config.md) for the full configuration reference.
 ```
+The UI is configurable to some extent. Check out [full configuration reference](./config.md) .
 
 ## Deployment
 
