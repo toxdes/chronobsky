@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import json
 import os
 import re
@@ -32,6 +33,7 @@ HANDLE = _load_dotenv(_ENV_PATH).get('BLUESKY_HANDLE', 'yourhandle.bsky.social')
 # ── Config ────────────────────────────────────────────────────────
 
 DEFAULT_CONFIG = {
+    "version": 1,
     "font": {
         "family": "Inter",
         "weights": [400, 500, 600],
@@ -93,13 +95,20 @@ def _deep_merge(base, overrides):
     return result
 
 
-def _load_config():
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+def _load_config(path=None):
+    if path is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
     if not os.path.exists(path):
+        if path != os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json'):
+            print(f'Error: config file not found: {path}')
+            sys.exit(1)
         return DEFAULT_CONFIG
     with open(path) as f:
         overrides = json.load(f)
-    return _deep_merge(DEFAULT_CONFIG, overrides)
+    cfg = _deep_merge(DEFAULT_CONFIG, overrides)
+    if cfg.get('version', 1) > 1:
+        print(f'Warning: config version {cfg["version"]} is newer than generator version 1')
+    return cfg
 
 
 # ── Data loading ────────────────────────────────────────────────
@@ -348,20 +357,20 @@ def _theme_vars(cfg):
     return '\n'.join(out)
 
 
-def _reset_css():
-    return '''/* ── Reset ──────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+def _reset_css(family):
+    return f'''/* ── Reset ──────────────────────────────────────── */
+*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+html {{ scroll-behavior: smooth; }}
 
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+body {{
+  font-family: '{family}', system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.7;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   transition: background .3s, color .3s;
-}'''
+}}'''
 
 
 def _header_css():
@@ -588,7 +597,7 @@ def _print_css(cal_visible):
 def generate_style_css(cfg):
     parts = [
         _theme_vars(cfg),
-        _reset_css(),
+        _reset_css(cfg['font']['family']),
         _header_css(),
         _layout_css(),
         _day_css(),
@@ -761,7 +770,11 @@ def generate_theme_js(cfg):
 # ── Main ────────────────────────────────────────────────────────
 
 def main():
-    cfg = _load_config()
+    parser = argparse.ArgumentParser(description='Generate static site from archived Bluesky posts.')
+    parser.add_argument('--config', help='Path to config JSON file (defaults to config.json in project root)')
+    args = parser.parse_args()
+
+    cfg = _load_config(args.config)
     posts = load_all_posts()
     if not posts:
         print('No posts found in tweets/.')
