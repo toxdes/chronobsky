@@ -1,29 +1,22 @@
 {
+  "version": 2,
   "font": {
     "family": "Inter",
     "weights": [400, 500, 600],
     "source": "google",
     "url": null
   },
-  "logo": {
-    "visible": true,
-    "text": "Chronobsky",
-    "url": "#"
+  "layout": {
+    "header": ["logo", "source_link", "dark_mode_toggle"],
+    "sidebar": ["calendar"],
+    "content": ["description"]
   },
-  "description": {
-    "visible": true,
-    "text": "{count} posts from @{handle} on bsky.social"
-  },
-  "source_link": {
-    "visible": true,
-    "text": "Source",
-    "url": "https://github.com/toxdes/chronobsky"
-  },
-  "dark_mode_toggle": {
-    "visible": true
-  },
-  "calendar": {
-    "visible": true
+  "widgets": {
+    "logo": { "text": "Chronobsky", "url": "#" },
+    "source_link": { "text": "Source", "url": "https://github.com/toxdes/chronobsky" },
+    "dark_mode_toggle": {},
+    "calendar": {},
+    "description": { "text": "{count} posts from @{handle} on bsky.social" }
   },
   "theme": {
     "light": {

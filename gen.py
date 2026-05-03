@@ -33,32 +33,32 @@ HANDLE = _load_dotenv(_ENV_PATH).get('BLUESKY_HANDLE', 'yourhandle.bsky.social')
 # ── Config ────────────────────────────────────────────────────────
 
 DEFAULT_CONFIG = {
-    "version": 1,
+    "version": 2,
     "font": {
         "family": "Inter",
         "weights": [400, 500, 600],
         "source": "google",
         "url": None,
     },
-    "logo": {
-        "visible": True,
-        "text": "Chronobsky",
-        "url": "#",
+    "layout": {
+        "header": ["logo", "source_link", "dark_mode_toggle"],
+        "sidebar": ["calendar"],
+        "content": ["description"],
     },
-    "description": {
-        "visible": True,
-        "text": "{count} posts from @{handle} on bsky.social",
-    },
-    "source_link": {
-        "visible": True,
-        "text": "Source",
-        "url": "https://github.com/toxdes/chronobsky",
-    },
-    "dark_mode_toggle": {
-        "visible": True,
-    },
-    "calendar": {
-        "visible": True,
+    "widgets": {
+        "logo": {
+            "text": "Chronobsky",
+            "url": "#",
+        },
+        "source_link": {
+            "text": "Source",
+            "url": "https://github.com/toxdes/chronobsky",
+        },
+        "dark_mode_toggle": {},
+        "calendar": {},
+        "description": {
+            "text": "{count} posts from @{handle} on bsky.social",
+        },
     },
     "theme": {
         "light": {
@@ -106,8 +106,8 @@ def _load_config(path=None):
     with open(path) as f:
         overrides = json.load(f)
     cfg = _deep_merge(DEFAULT_CONFIG, overrides)
-    if cfg.get('version', 1) > 1:
-        print(f'Warning: config version {cfg["version"]} is newer than generator version 1')
+    if cfg.get('version', 2) > 2:
+        print(f'Warning: config version {cfg["version"]} is newer than generator version 2')
     return cfg
 
 
@@ -242,6 +242,18 @@ def render_calendar_sidebar():
 </aside>'''
 
 
+def render_calendar_modal():
+    return '''<div id="cal-modal" class="cal-modal-overlay" hidden>
+  <div class="cal-modal-box">
+    <div class="cal-modal-header">
+      <span class="cal-modal-title">Calendar</span>
+      <button id="cal-modal-close" class="cal-modal-close">&times;</button>
+    </div>
+    <div id="cal-modal-body"></div>
+  </div>
+</div>'''
+
+
 def _render_font_link(cfg):
     font = cfg['font']
     if font['source'] == 'google':
@@ -253,51 +265,81 @@ def _render_font_link(cfg):
     return ''
 
 
+def _nav_item_html(name, cfg):
+    w = cfg['widgets']
+    if name == 'source_link':
+        sl = w['source_link']
+        return f'<a href="{_escape(sl["url"])}" class="gh-link" target="_blank" rel="noopener">{_escape(sl["text"])}</a>'
+    if name == 'dark_mode_toggle':
+        return '<button id="theme-toggle" aria-label="Toggle theme">🌚</button>'
+    if name == 'calendar':
+        return '<button id="cal-toggle" class="cal-toggle">Cal</button>'
+    return ''
+
+
+def _sidebar_html(name, cfg):
+    if name == 'calendar':
+        return render_calendar_sidebar()
+    return ''
+
+
+def _content_html(name, cfg, total):
+    if name == 'description':
+        desc_text = cfg['widgets']['description'].get('text', '')
+        desc_text = desc_text.replace('{count}', f'<span class="post-count">{total}</span>').replace('{handle}', HANDLE)
+        return f'<section class="intro"><p>{desc_text}</p></section>'
+    return ''
+
+
 def generate_html(days, known_ids, total, cfg):
     sections = '\n'.join(render_day(d, ps, known_ids) for d, ps in days.items())
     dates_json = json.dumps(sorted(days.keys()))
     font_link = _render_font_link(cfg)
+    layout = cfg['layout']
+    w = cfg['widgets']
 
-    # Widget: logo
+    # Logo (special: outside <nav>)
     logo = ''
-    if cfg['logo']['visible']:
-        logo = f'<h1><a href="{_escape(cfg["logo"]["url"])}">{_escape(cfg["logo"]["text"])}</a></h1>'
+    if 'logo' in layout.get('header', []) and 'logo' in w:
+        l = w['logo']
+        logo = f'<h1><a href="{_escape(l["url"])}">{_escape(l["text"])}</a></h1>'
 
-    # Widget: source link
-    source_link = ''
-    if cfg['source_link']['visible']:
-        sl = cfg['source_link']
-        source_link = f'<a href="{_escape(sl["url"])}" class="gh-link" target="_blank" rel="noopener">{_escape(sl["text"])}</a>'
+    # Header nav items
+    nav_items = []
+    has_calendar = any('calendar' in layout.get(slot, []) for slot in layout)
+    for name in layout.get('header', []):
+        if name == 'logo':
+            continue
+        html = _nav_item_html(name, cfg)
+        if html:
+            nav_items.append(html)
+    if has_calendar:
+        nav_items.append(_nav_item_html('calendar', cfg))
+    nav_html = '\n      '.join(nav_items)
 
-    # Widget: dark mode toggle
-    toggle = ''
-    if cfg['dark_mode_toggle']['visible']:
-        toggle = '<button id="theme-toggle" aria-label="Toggle theme">🌚</button>'
+    # Sidebar
+    sidebar_html = ''
+    for name in layout.get('sidebar', []):
+        html = _sidebar_html(name, cfg)
+        if html:
+            sidebar_html += html
 
-    # Widget: calendar toggle button (mobile)
-    cal_toggle = ''
-    cal_sidebar = ''
-    cal_modal = ''
-    if cfg['calendar']['visible']:
-        cal_toggle = '<button id="cal-toggle" class="cal-toggle">Cal</button>'
-        cal_sidebar = render_calendar_sidebar()
-        cal_modal = '''<div id="cal-modal" class="cal-modal-overlay" hidden>
-  <div class="cal-modal-box">
-    <div class="cal-modal-header">
-      <span class="cal-modal-title">Calendar</span>
-      <button id="cal-modal-close" class="cal-modal-close">&times;</button>
-    </div>
-    <div id="cal-modal-body"></div>
-  </div>
+    # Content above posts
+    content_top = ''
+    for name in layout.get('content', []):
+        html = _content_html(name, cfg, total)
+        if html:
+            content_top += html
+
+    # Modals
+    modals = '''<div id="image-modal" class="modal-overlay" hidden>
+  <button id="modal-close" class="modal-close">&times;</button>
+  <img id="modal-img" src="" alt="">
 </div>'''
+    if sidebar_html:
+        modals += render_calendar_modal()
 
-    # Widget: description
-    desc = ''
-    if cfg['description']['visible']:
-        desc_text = cfg['description']['text']
-        desc_text = desc_text.replace('{count}', f'<span class="post-count">{total}</span>').replace('{handle}', HANDLE)
-        desc = f'<section class="intro"><p>{desc_text}</p></section>'
-
+    content_wrap = 'page-wrap' if sidebar_html else ''
     return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -314,24 +356,18 @@ def generate_html(days, known_ids, total, cfg):
   <div class="header-inner">
     {logo}
     <nav>
-      {source_link}
-      {cal_toggle}
-      {toggle}
+      {nav_html}
     </nav>
   </div>
 </header>
-<div class="page-wrap">
+<div class="{content_wrap}">
 <main>
-{desc}
+{content_top}
 {sections}
 </main>
-{cal_sidebar}
+{sidebar_html}
 </div>
-<div id="image-modal" class="modal-overlay" hidden>
-  <button id="modal-close" class="modal-close">&times;</button>
-  <img id="modal-img" src="" alt="">
-</div>
-{cal_modal}
+{modals}
 <script>
 var ACTIVE_DATES = {dates_json};
 </script>
@@ -367,7 +403,7 @@ body {{
   background: var(--bg);
   color: var(--text);
   line-height: 1.7;
-  font-size: 16px;
+  font-size: 1rem;
   -webkit-font-smoothing: antialiased;
   transition: background .3s, color .3s;
 }}'''
@@ -378,26 +414,26 @@ def _header_css():
 header {
   position: sticky; top: 0; z-index: 100;
   background: var(--header-bg);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(0.75rem);
   border-bottom: 1px solid var(--border);
   transition: background .3s, border-color .3s;
 }
 .header-inner {
   max-width: 980px; margin: 0 auto;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 24px;
+  padding: 0.75rem 1.5rem;
 }
-header h1 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+header h1 { font-size: 1.125rem; font-weight: 600; letter-spacing: -.01em; }
 header h1 a { color: var(--text); text-decoration: none; }
-header nav { display: flex; align-items: center; gap: 12px; }
+header nav { display: flex; align-items: center; gap: 0.75rem; }
 .gh-link {
-  font-size: 13px; font-weight: 500; color: var(--muted);
+  font-size: 0.8125rem; font-weight: 500; color: var(--muted);
   text-decoration: none; transition: color .2s;
 }
 .gh-link:hover { color: var(--accent); }
 #theme-toggle {
-  background: none; border: 1px solid var(--border); border-radius: 8px;
-  padding: 6px 10px; font-size: 18px; cursor: pointer; line-height: 1;
+  background: none; border: 1px solid var(--border); border-radius: 0.5rem;
+  padding: 0.375rem 0.625rem; font-size: 1.125rem; cursor: pointer; line-height: 1;
   transition: border-color .2s;
 }
 #theme-toggle:hover { border-color: var(--accent); }'''
@@ -405,73 +441,70 @@ header nav { display: flex; align-items: center; gap: 12px; }
 
 def _cal_toggle_css():
     return '''.cal-toggle {
-  background: none; border: 1px solid var(--border); border-radius: 8px;
-  padding: 6px 10px; font-size: 13px; font-weight: 500; cursor: pointer;
+  background: none; border: 1px solid var(--border); border-radius: 0.5rem;
+  padding: 0.375rem 0.625rem; font-size: 0.8125rem; font-weight: 500; cursor: pointer;
   color: var(--muted); line-height: 1; display: none;
   transition: color .2s, border-color .2s;
 }
 .cal-toggle:hover { color: var(--accent); border-color: var(--accent); }'''
 
-
 def _layout_css():
     return '''/* ── Page layout ──────────────────────────────────── */
 .page-wrap {
-  max-width: 980px; margin: 0 auto; padding: 40px 24px 80px;
-  display: flex; gap: 40px; align-items: flex-start;
+  max-width: 980px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem;
+  display: flex; gap: 2.5rem; align-items: flex-start;
 }
 main { flex: 0 0 680px; max-width: 680px; }
 .intro {
-  margin-bottom: 40px; padding-bottom: 24px;
+  margin-bottom: 2.5rem; padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--border);
-  font-size: 14px; color: var(--muted); line-height: 1.6;
+  font-size: 0.875rem; color: var(--muted); line-height: 1.6;
   transition: border-color .3s;
 }
 .intro a { color: var(--accent); text-decoration: none; font-weight: 500; }
 .intro a:hover { text-decoration: underline; }
 .post-count { font-weight: 500; color: var(--text); }'''
 
-
 def _day_css():
     return '''/* ── Day section ────────────────────────────────── */
-.day { margin-bottom: 48px; scroll-margin-top: 80px; }
+.day { margin-bottom: 3rem; scroll-margin-top: 5rem; }
 .day h2 {
-  font-size: 20px; font-weight: 600; color: var(--accent);
-  margin-bottom: 24px; padding-bottom: 8px;
+  font-size: 1.25rem; font-weight: 600; color: var(--accent);
+  margin-bottom: 1.5rem; padding-bottom: 0.5rem;
   border-bottom: 2px solid var(--border);
   transition: color .3s, border-color .3s;
 }'''
 
-
 def _post_css():
     return '''/* ── Post card ──────────────────────────────────── */
 .post {
-  margin-bottom: 16px; padding: 16px 20px; border-radius: 12px;
-  border: 1px solid var(--border); scroll-margin-top: 70px;
+  margin-bottom: 1rem; padding: 1rem 1.25rem; border-radius: 0.75rem;
+  border: 1px solid var(--border); scroll-margin-top: 4.375rem;
   transition: border-color .3s, background .3s;
 }
 .post.reply { background: var(--reply-bg); }
 .post-meta {
-  display: flex; align-items: center; gap: 6px;
-  margin-bottom: 8px; font-size: 13px; color: var(--muted);
+  display: flex; align-items: center; gap: 0.375rem;
+  margin-bottom: 0.5rem; font-size: 0.8125rem; color: var(--muted);
 }
 .post-meta time { font-weight: 500; }
 .reply-badge {
-  font-size: 11px; font-weight: 600; color: var(--accent);
-  padding: 1px 6px; border-radius: 4px;
+  font-size: 0.6875rem; font-weight: 600; color: var(--accent);
+  padding: 0.0625rem 0.375rem; border-radius: 0.25rem;
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 a.reply-badge { text-decoration: none; transition: background .2s; }
 a.reply-badge:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 .post-link {
   margin-left: auto; color: var(--link-icon); text-decoration: none;
-  font-size: 12px; opacity: 0; transition: opacity .2s;
+  font-size: 0.75rem; opacity: 0; transition: opacity .2s;
 }
 .post:hover .post-link { opacity: 1; }
 .post-link:hover { color: var(--accent); }
 .quote-link {
-  display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 500;
-  color: var(--accent); text-decoration: none; padding: 3px 10px;
-  border-radius: 6px; border: 1px solid var(--border);
+  display: inline-block; margin-top: 0.625rem; font-size: 0.8125rem; font-weight: 500;
+  color: var(--accent); text-decoration: none; padding: 0.1875rem 0.625rem;
+  border-radius: 0.375rem; border: 1px solid var(--border);
   transition: background .2s, border-color .2s;
 }
 .quote-link:hover {
@@ -479,56 +512,53 @@ a.reply-badge:hover { background: color-mix(in srgb, var(--accent) 20%, transpar
   border-color: var(--accent);
 }'''
 
-
 def _content_css():
     return '''/* ── Content ────────────────────────────────────── */
 .post-content {
-  font-size: 15px; line-height: 1.7;
+  font-size: 0.9375rem; line-height: 1.7;
   word-wrap: break-word; overflow-wrap: break-word;
 }
-.post-content p { margin-bottom: 8px; }
+.post-content p { margin-bottom: 0.5rem; }
 .post-content p:last-child { margin-bottom: 0; }
 .post-content a { color: var(--accent); word-break: break-all; }'''
 
-
 def _image_css():
     return '''/* ── Images ─────────────────────────────────────── */
-.post-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.post-images { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
 .post-images img {
-  max-width: 100%; height: auto; border-radius: 8px;
+  max-width: 100%; height: auto; border-radius: 0.5rem;
   border: 1px solid var(--border);
 }'''
 
-
 def _calendar_sidebar_css():
     return '''/* ── Calendar sidebar ────────────────────────────── */
-.cal-sidebar { flex: 0 0 220px; position: sticky; top: 70px; }
+.cal-sidebar { flex: 0 0 220px; position: sticky; top: 4.375rem; }
 #calendar {
-  border: 1px solid var(--border); border-radius: 10px;
-  padding: 12px; overflow: hidden; transition: border-color .3s;
+  border: 1px solid var(--border); border-radius: 0.625rem;
+  padding: 0.75rem; overflow: hidden; transition: border-color .3s;
 }
-.cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.cal-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.625rem; }
+.cal-label { font-size: 0.8125rem; font-weight: 600; color: var(--text); }
 .cal-nav {
-  background: none; border: 1px solid var(--border); border-radius: 6px;
-  padding: 0 8px; font-size: 14px; cursor: pointer; color: var(--muted);
-  line-height: 1; height: 26px;
+  background: none; border: 1px solid var(--border); border-radius: 0.375rem;
+  padding: 0 0.5rem; font-size: 0.875rem; cursor: pointer; color: var(--muted);
+  line-height: 1; height: 1.625rem;
   display: flex; align-items: center; justify-content: center;
   transition: color .2s, border-color .2s;
 }
 .cal-nav:hover { color: var(--accent); border-color: var(--accent); }
 .cal-nav:disabled { opacity: 0.25; cursor: default; pointer-events: none; }
-.cal-grid { width: 100%; border-collapse: collapse; font-size: 12px; }
-.cal-grid th { font-weight: 500; color: var(--muted); padding: 2px 0; text-align: center; font-size: 11px; }
-.cal-grid td { text-align: center; padding: 3px 0; color: var(--muted); font-size: 12px; }
+.cal-grid { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.cal-grid th { font-weight: 500; color: var(--muted); padding: 0.125rem 0; text-align: center; font-size: 0.6875rem; }
+.cal-grid td { text-align: center; padding: 0.1875rem 0; color: var(--muted); font-size: 0.75rem; }
 .cal-grid td a {
-  display: inline-block; width: 24px; height: 24px; line-height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  width: 1.5rem; height: 1.5rem; margin: 0 auto;
   border-radius: 50%; text-decoration: none; color: var(--text);
-  font-weight: 500; font-size: 12px; transition: background .2s, color .2s;
+  font-weight: 500; font-size: 0.75rem; transition: background .2s, color .2s;
 }
 .cal-grid td a:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 .cal-grid td a.active { color: var(--accent); font-weight: 600; }'''
-
 
 def _cal_modal_css():
     return '''/* ── Calendar modal (mobile) ────────────────────── */
@@ -539,17 +569,16 @@ def _cal_modal_css():
 }
 .cal-modal-overlay[hidden] { display: none; }
 .cal-modal-box {
-  background: var(--bg); border-radius: 14px; padding: 20px;
+  background: var(--bg); border-radius: 0.875rem; padding: 1.25rem;
   width: 300px; cursor: default; transition: background .3s;
 }
-.cal-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.cal-modal-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.cal-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.cal-modal-title { font-size: 0.9375rem; font-weight: 600; color: var(--text); }
 .cal-modal-close {
-  background: none; border: none; font-size: 22px; cursor: pointer;
+  background: none; border: none; font-size: 1.375rem; cursor: pointer;
   color: var(--muted); padding: 0; line-height: 1;
 }
 .cal-modal-close:hover { color: var(--text); }'''
-
 
 def _lightbox_css():
     return '''/* ── Image lightbox ─────────────────────────────── */
@@ -559,15 +588,14 @@ def _lightbox_css():
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .modal-overlay[hidden] { display: none; }
-.modal-overlay img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 4px; cursor: default; }
+.modal-overlay img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 0.25rem; cursor: default; }
 .modal-close {
-  position: fixed; top: 16px; right: 16px;
-  background: none; border: none; font-size: 32px; color: #fff;
+  position: fixed; top: 1rem; right: 1rem;
+  background: none; border: none; font-size: 2rem; color: #fff;
   cursor: pointer; opacity: 0.6; z-index: 201; line-height: 1;
   transition: opacity .2s;
 }
 .modal-close:hover { opacity: 1; }'''
-
 
 def _responsive_css(cal_visible):
     parts = ['/* ── Responsive ─────────────────────────────────── */',
@@ -576,12 +604,12 @@ def _responsive_css(cal_visible):
         parts.append('  .cal-sidebar { display: none; }')
         parts.append('  .cal-toggle { display: inline-flex; align-items: center; }')
     parts.extend([
-        '  .page-wrap { padding: 24px 16px 60px; }',
+        '  .page-wrap { padding: 1.5rem 1rem 3.75rem; }',
         '  main { flex: none; max-width: none; }',
         '  .page-wrap { display: block; }',
-        '  .post { padding: 12px 14px; }',
-        '  .post-content { font-size: 14px; }',
-        '  .day h2 { font-size: 18px; }',
+        '  .post { padding: 0.75rem 0.875rem; }',
+        '  .post-content { font-size: 0.875rem; }',
+        '  .day h2 { font-size: 1.125rem; }',
         '}',
     ])
     return '\n'.join(parts)
@@ -595,6 +623,7 @@ def _print_css(cal_visible):
 
 
 def generate_style_css(cfg):
+    has_cal = 'calendar' in cfg['layout'].get('sidebar', [])
     parts = [
         _theme_vars(cfg),
         _reset_css(cfg['font']['family']),
@@ -605,13 +634,13 @@ def generate_style_css(cfg):
         _content_css(),
         _image_css(),
     ]
-    if cfg['calendar']['visible']:
+    if has_cal:
         parts.append(_cal_toggle_css())
         parts.append(_calendar_sidebar_css())
         parts.append(_cal_modal_css())
     parts.append(_lightbox_css())
-    parts.append(_responsive_css(cfg['calendar']['visible']))
-    parts.append(_print_css(cfg['calendar']['visible']))
+    parts.append(_responsive_css(has_cal))
+    parts.append(_print_css(has_cal))
     return '\n\n'.join(parts) + '\n'
 
 THEME_TOGGLE_JS = '''(function() {
@@ -758,9 +787,9 @@ CALENDAR_MODAL_JS = '''(function() {
 
 def generate_theme_js(cfg):
     parts = []
-    if cfg['dark_mode_toggle']['visible']:
+    if 'dark_mode_toggle' in cfg['layout'].get('header', []):
         parts.append(THEME_TOGGLE_JS)
-    if cfg['calendar']['visible']:
+    if 'calendar' in cfg['layout'].get('sidebar', []):
         parts.append(CALENDAR_JS)
         parts.append(CALENDAR_MODAL_JS)
     parts.append(LIGHTBOX_JS)
