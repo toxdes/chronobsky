@@ -28,6 +28,8 @@ $ python3 fetch_bsky.py     # fetch new posts from Bluesky
 $ python3 gen.py            # generate static site in dist/
 $ python3 deploy_vercel.py  # deploy dist/ to Vercel
 $ ./run.sh                  # run all three in sequence
+
+See [config.md](config.md) for the full configuration reference.
 ```
 
 ## Deployment
