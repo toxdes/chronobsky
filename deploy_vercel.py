@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import base64
 import json
 import os
@@ -6,6 +7,8 @@ import sys
 import urllib.parse
 import urllib.request
 import urllib.error
+
+from bsky.state import load, save
 
 DIST_DIR = 'dist'
 API_URL = 'https://api.vercel.com/v13/deployments'
@@ -55,6 +58,18 @@ def _collect_files():
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Deploy dist/ to Vercel.')
+    parser.add_argument('--force', action='store_true', help='Skip the up-to-date check and deploy regardless')
+    args = parser.parse_args()
+
+    # Check if there are new posts since last deploy
+    if not args.force:
+        state = load()
+        last_deployed = state.get('last_deployed_created_at')
+        if last_deployed and last_deployed >= state.get('latest_created_at', ''):
+            print('Already up to date. Use --force to deploy anyway.')
+            return
+
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
     env = _load_dotenv(env_path)
     token = env.get('VERCEL_TOKEN', '')
@@ -118,6 +133,11 @@ def main():
     print(f'Deployed: https://{deploy_url}')
     if inspector_url:
         print(f'Inspector: {inspector_url}')
+
+    # Mark this deployment as current
+    state = load()
+    state['last_deployed_created_at'] = state.get('latest_created_at', '')
+    save(state)
 
 
 if __name__ == '__main__':
