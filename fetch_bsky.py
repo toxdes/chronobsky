@@ -108,7 +108,9 @@ def _fetch_all(client, handle):
         os.rename(temp_dir, old_tweets_dir)
 
         newest = max(p['created_at'] for p in posts)
-        save({'latest_created_at': newest})
+        state = load()
+        state['latest_created_at'] = newest
+        save(state)
         print(f'Done. Archived {len(posts)} posts.')
     except BaseException:
         # Failure — clean up temp, keep originals intact
@@ -158,7 +160,9 @@ def main():
     _download_and_save(new_posts, TWEETS_DIR)
 
     newest = max(p['created_at'] for p in new_posts)
-    save({'latest_created_at': newest})
+    state = load()
+    state['latest_created_at'] = newest
+    save(state)
     print('Done.')
     _ping_counter()
 
